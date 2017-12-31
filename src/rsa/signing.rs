@@ -265,7 +265,7 @@ impl RSAKeyPair {
                 //
                 // We can take |p > q| as an invariant as it would already have
                 // been swapped above if |p < q|. Our implementation of CRT-based
-                // moduluar exponentiation used requires that |q > p|.
+                // moduluar exponentiation used requires that |p > q|.
                 // (|p == q| is just wrong.)
                 //
                 // Also, because we just check the bit length of p - q, we
