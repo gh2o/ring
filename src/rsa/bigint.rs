@@ -706,8 +706,8 @@ pub fn elem_set_to_inverse_blinded(
 // This relies on the invariants of `Modulus` that its value is odd and larger
 // than one.
 #[cfg(feature = "rsa_signing")]
-fn elem_inverse<M>(a: Elem<M, Unencoded>, m: &Modulus<M>)
-                   -> Result<Elem<M, R>, InversionError> {
+pub fn elem_inverse<M>(a: Elem<M, Unencoded>, m: &Modulus<M>)
+                       -> Result<Elem<M, R>, InversionError> {
     let a_clone = a.try_clone()?;
     let inverse = nonnegative_mod_inverse(a.value, &(m.value.0).0)?;
     let r: Elem<M, R> = Elem {
