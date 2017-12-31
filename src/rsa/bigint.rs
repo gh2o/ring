@@ -676,6 +676,24 @@ pub fn elem_exp_consttime<M>(
     Ok(r)
 }
 
+/// Uses Fermat's Little Theorem to calculate modular inverse in constant time.
+#[cfg(feature = "rsa_signing")]
+pub fn elem_inverse_consttime<M>(
+        a: Elem<M, R>,
+        m: &Modulus<M>,
+        oneR: &One<M, R>) -> Result<Elem<M, Unencoded>, error::Unspecified> {
+    // Set exponent to m-2.
+    let exponent = {
+        let e:   Elem<M> = Elem::zero()?;
+        let one: Elem<M> = Elem::one()?;
+        // elem_sub() is constant-time iff the number of limbs in `b` is constant.
+        let e = elem_sub(e, &one, m)?;
+        let e = elem_sub(e, &one, m)?;
+        e.value.into_odd_positive()?
+    };
+    elem_exp_consttime(a, &exponent, oneR, m)
+}
+
 #[cfg(feature = "rsa_signing")]
 pub fn elem_randomize<E>(a: &mut Elem<super::N, E>, m: &Modulus<super::N>,
                          rng: &rand::SecureRandom)
@@ -706,8 +724,8 @@ pub fn elem_set_to_inverse_blinded(
 // This relies on the invariants of `Modulus` that its value is odd and larger
 // than one.
 #[cfg(feature = "rsa_signing")]
-pub fn elem_inverse<M>(a: Elem<M, Unencoded>, m: &Modulus<M>)
-                       -> Result<Elem<M, R>, InversionError> {
+fn elem_inverse<M>(a: Elem<M, Unencoded>, m: &Modulus<M>)
+                   -> Result<Elem<M, R>, InversionError> {
     let a_clone = a.try_clone()?;
     let inverse = nonnegative_mod_inverse(a.value, &(m.value.0).0)?;
     let r: Elem<M, R> = Elem {

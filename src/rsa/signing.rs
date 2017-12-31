@@ -251,7 +251,9 @@ impl RSAKeyPair {
                 let n = n.into_modulus::<N>()?;
                 let oneRR_mod_n = bigint::One::newRR(&n)?;
 
-                // Swap p and q if p < q.
+                // Swap p and q if p < q. If swapped, qInv is recalculated below,
+                // after `p` becomes a PrivatePrime object and `p.oneR` is
+                // calculated.
                 let (p, q, dP, dQ, pq_swapped) = match q.verify_less_than(&p) {
                     Ok(_)  => (p, q, dP, dQ, false),
                     Err(_) => (q, p, dQ, dP, true),
@@ -348,31 +350,26 @@ impl RSAKeyPair {
 
                 let q_mod_p = q.try_clone()?.into_elem(&p.modulus)?;
                 let qInv = if pq_swapped {
-                    // Calculate a new qInv. Steps 7.c-7.f can be skipped because
-                    // elem_inverse() already verifies qInv's invertibility.
-                    bigint::elem_inverse(
-                        q_mod_p,
-                        &p.modulus)
-                        .map_err(|_| error::Unspecified)?
+                    // Calculate a new qInv using Fermat's Little Theorem.
+                    let q_mod_p = bigint::elem_mul(p.oneRR.as_ref(), q_mod_p.try_clone()?, &p.modulus)?;
+                    bigint::elem_inverse_consttime(q_mod_p, &p.modulus, &p.oneR)?
                 } else {
                     // Step 7.c.
-                    let qInv = qInv.into_elem(&p.modulus)?;
-
-                    // Steps 7.d and 7.e are omitted per the documentation above,
-                    // and because we don't (in the long term) have a good way to
-                    // do modulo with an even modulus.
-
-                    // Step 7.f.
-                    let qInv =
-                        bigint::elem_mul(p.oneRR.as_ref(), qInv, &p.modulus)?;
-                    let qInv_times_q_mod_p =
-                        bigint::elem_mul(&qInv, q_mod_p, &p.modulus)?;
-                    if !qInv_times_q_mod_p.is_one() {
-                        return Err(error::Unspecified);
-                    }
-
-                    qInv
+                    qInv.into_elem(&p.modulus)?
                 };
+
+                // Steps 7.d and 7.e are omitted per the documentation above,
+                // and because we don't (in the long term) have a good way to
+                // do modulo with an even modulus.
+
+                // Step 7.f.
+                let qInv =
+                    bigint::elem_mul(p.oneRR.as_ref(), qInv, &p.modulus)?;
+                let qInv_times_q_mod_p =
+                    bigint::elem_mul(&qInv, q_mod_p, &p.modulus)?;
+                if !qInv_times_q_mod_p.is_one() {
+                    return Err(error::Unspecified);
+                }
 
                 // Step 7.b (out of order). Same proof as for `dP < p - 1`.
                 let q = PrivatePrime::new(q, dQ)?;
